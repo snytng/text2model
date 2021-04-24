@@ -10,23 +10,23 @@ import com.change_vision.jude.api.inf.model.IDiagram;
 import com.change_vision.jude.api.inf.model.IElement;
 
 public class ClassDiagramMessages implements DiagramMessages {
-	
+
 	private static ClassDiagramMessages instance = null;
-	
+
 	public static ClassDiagramMessages getInstance(){
 		if(instance == null){
-			instance = new ClassDiagramMessages(); 
+			instance = new ClassDiagramMessages();
 		}
 		return instance;
 	}
-	
+
 	private ClassDiagramMessages(){
 		// no initialization
 	}
-	
+
 	public List<String> getMessages(IDiagram diagram, Stream<IElement> elements){
 		IClassDiagram classDiagram = (IClassDiagram)diagram;
-		
+
 		Stream<String> lines = null;
 
 		IElement[] es = elements
@@ -41,9 +41,10 @@ public class ClassDiagramMessages implements DiagramMessages {
 			lines =  new ClassDiagramReader(classDiagram).read().stream();
 		}
 
-		// メッセージのカッコを外してListを返却
+		// メッセージのカッコ、。を外してListを返却
 		return lines
 				.map(s -> s.replaceAll("[「」]", ""))
+				.map(s -> s.replaceAll("。", ""))
 				.collect(Collectors.toList());
 	}
 }
