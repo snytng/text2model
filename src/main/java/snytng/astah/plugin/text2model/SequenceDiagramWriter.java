@@ -32,7 +32,7 @@ public class SequenceDiagramWriter {
 	static final Logger logger = Logger.getLogger(SequenceDiagramWriter.class.getName());
 	static {
 		ConsoleHandler consoleHandler = new ConsoleHandler();
-		consoleHandler.setLevel(Level.CONFIG);      
+		consoleHandler.setLevel(Level.CONFIG);
 		logger.addHandler(consoleHandler);
 		logger.setUseParentHandlers(false);
 	}
@@ -58,11 +58,11 @@ public class SequenceDiagramWriter {
 
 
 	private boolean createNewSequenceDiagram = false;
-	
+
 	public void setCreateNewSequenceDiagram(boolean b){
 		this.createNewSequenceDiagram = b;
 	}
-	
+
 	public void createSequenceDiagram(IClassDiagram classDiagram, FunctionCreator f)
 			throws InvalidUsingException, ProjectNotFoundException, InvalidEditingException {
 		TransactionManager.beginTransaction();
@@ -155,7 +155,7 @@ public class SequenceDiagramWriter {
 				TransactionManager.endTransaction();
 				logger.log(Level.INFO,"subjectL 新規 " + subjectL.getBase().getName());
 			} else {
-				logger.log(Level.INFO,"subjectL 既存" + subjectL.getBase().getName());						
+				logger.log(Level.INFO,"subjectL 既存" + subjectL.getBase().getName());
 			}
 
 			// object

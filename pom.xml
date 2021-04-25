@@ -10,7 +10,7 @@
 	</properties>
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>text2model</artifactId>
-	<version>0.1</version>
+	<version>0.1a</version>
 	<packaging>bundle</packaging>
 	<pluginRepositories>
 		<pluginRepository>
