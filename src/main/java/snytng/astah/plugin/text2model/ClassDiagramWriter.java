@@ -23,7 +23,7 @@ public class ClassDiagramWriter implements DiagramWriter {
 	static final Logger logger = Logger.getLogger(ClassDiagramWriter.class.getName());
 	static {
 		ConsoleHandler consoleHandler = new ConsoleHandler();
-		consoleHandler.setLevel(Level.CONFIG);      
+		consoleHandler.setLevel(Level.CONFIG);
 		logger.addHandler(consoleHandler);
 		logger.setUseParentHandlers(false);
 	}
@@ -43,12 +43,12 @@ public class ClassDiagramWriter implements DiagramWriter {
 	public Supplier<String> getModeGetter(){
 		return () -> "クラス図モード | 属性：～の～、操作：～を～する、集約：～の一部だ、継承：～の一種だ、実現：～の実現だ、依存：～を使う";
 	}
-	
+
 	private boolean nounMode = false;
 	public void setNounMode(boolean b){
 		this.nounMode = b;
 	}
-	
+
 	public Function<String, String[][]> getTextAanalyzer(){
 		return str -> {
 			// 名詞モードの場合には、名詞ペアを抽出する
@@ -56,27 +56,27 @@ public class ClassDiagramWriter implements DiagramWriter {
 				return Morpho.getNouns(str, /*サ変*/false, /*ストップワード*/true);
 			}
 			// それ以外は、主語、目的語、述語に分ける
-			else {	
+			else {
 				return Morpho.getSubObjVrb(str);
 			}
 		};
 	}
-	
+
 	private boolean sequenceDiagramMode = false;
 	public void setSequenceDiagramMode(boolean b){
 		this.sequenceDiagramMode = b;
 	}
 
 	public Consumer<FunctionCreator> getFunctionVisualizer(){
-		return f -> { 
+		return f -> {
 			if(f.subjectName.isEmpty() || f.objectName.isEmpty()){
 				logger.log(Level.WARNING, "cannot add function because of argument(s) is empty.");
 				return;
 			}
-			
+
 			try {
 				TransactionManager.beginTransaction();
-				
+
 				// 作成前ログを出力
 				f.logName();
 
@@ -105,8 +105,8 @@ public class ClassDiagramWriter implements DiagramWriter {
 					f.setRelation(p);
 				}
 
-				// 関連を追加
-				f.addRelation();
+				// 関連を追加or削除
+				f.addOrDelRelation();
 
 				// 作成後ログを出力
 				f.log();
@@ -115,7 +115,9 @@ public class ClassDiagramWriter implements DiagramWriter {
 
 				// シーケンス図を作成
 				if(sequenceDiagramMode){
-					SequenceDiagramWriter.getInstance().createSequenceDiagram(classDiagram, f);
+					if(! f.delRelation) {
+						SequenceDiagramWriter.getInstance().createSequenceDiagram(classDiagram, f);
+					}
 				}
 
 			} catch (Exception e) {
@@ -124,7 +126,7 @@ public class ClassDiagramWriter implements DiagramWriter {
 			}
 		};
 	}
-	
+
 	private Point2D getNewClassPosition(IClassDiagram classDiagram) throws InvalidUsingException {
 		// 右下にあるNodePresentationの位置
 		Point2D rdp = new Point(0, 0);
@@ -133,7 +135,7 @@ public class ClassDiagramWriter implements DiagramWriter {
 			if(p instanceof INodePresentation){
 				Point2D npp = ((INodePresentation) p).getLocation();
 				rdp.setLocation(Math.max(npp.getX(), rdp.getX()), Math.max(npp.getY(), rdp.getY()));
-			}	
+			}
 		}
 		return new Point2D.Double(rdp.getX() + 100, rdp.getY() + 100);
 	}
