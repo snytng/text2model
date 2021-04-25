@@ -41,7 +41,7 @@ class FunctionCreator {
 	static final Logger logger = Logger.getLogger(FunctionCreator.class.getName());
 	static {
 		ConsoleHandler consoleHandler = new ConsoleHandler();
-		consoleHandler.setLevel(Level.CONFIG);      
+		consoleHandler.setLevel(Level.CONFIG);
 		logger.addHandler(consoleHandler);
 		logger.setUseParentHandlers(false);
 	}
@@ -75,21 +75,23 @@ class FunctionCreator {
 
 	boolean isGeneralization       = false;
 	boolean isAggregation          = false;
-	boolean isAssociation          = false; 	     
+	boolean isAssociation          = false;
 	boolean isAttributeAssociation = false;
 	boolean isRealization          = false;
 	boolean isDependency           = false;
 
 	IOperation operation = null;
 	IAttribute attribute = null;
-	
+
 	boolean addAttribute = false;
-	boolean addOperation = false;	
+	boolean addOperation = false;
+
+	boolean delRelation = false;
 
 	FunctionCreator(ProjectAccessor projectAccessor, IDiagram diagram, boolean addAttribute, boolean addOperation) throws InvalidUsingException, InvalidEditingException {
 		this.projectAccessor = projectAccessor;
 		this.diagram = diagram;
-		
+
 		this.addAttribute = addAttribute;
 		this.addOperation = addOperation;
 
@@ -98,7 +100,7 @@ class FunctionCreator {
 		this.cde.setDiagram(diagram);
 
 		// BasicModelEitorを取得する
-		this.bme = projectAccessor.getModelEditorFactory().getBasicModelEditor();		
+		this.bme = projectAccessor.getModelEditorFactory().getBasicModelEditor();
 	}
 
 	void addSubject(Point2D point) throws ProjectNotFoundException, InvalidEditingException {
@@ -140,30 +142,56 @@ class FunctionCreator {
 			if(attributeName.equals("一種")){
 				relationName = "";
 				isGeneralization = true;
+				logger.log(Level.INFO, () -> "isGeneralization");
 			}
 			// の実現だ　→　実現->
 			else if(attributeName.equals("実現")){
 				relationName = "";
 				isRealization = true;
+				logger.log(Level.INFO, () -> "isRealization");
 			}
 			// の一部だ　→　集約◇
 			else if(attributeName.equals("一部")){
 				relationName = "";
 				isAggregation = true;
+				logger.log(Level.INFO, () -> "isAggregation");
 			}
 			// それ以外は属性
 			else {
 				relationName = "の" + attributeName + relationName;
 				isAttributeAssociation = true;
 				isAssociation = true;
+				logger.log(Level.INFO, () -> "isAssociation");
 			}
 		} else {
+			// の一種だ　→　継承△
+			if(relationName.equals("の一種だ")){
+				relationName = "";
+				isGeneralization = true;
+				logger.log(Level.INFO, () -> "isGeneralization");
+			}
+			// の実現だ　→　実現->
+			else if(relationName.equals("の実現だ")){
+				relationName = "";
+				isRealization = true;
+				logger.log(Level.INFO, () -> "isRealization");
+			}
+			// の一部だ　→　集約◇
+			else if(relationName.equals("の一部だ")){
+				relationName = "";
+				isAggregation = true;
+				logger.log(Level.INFO, () -> "isAggregation");
+			}
 			// を使う　→　依存-->
-			if(relationName.equals("を使う")){
+			else if(relationName.equals("を使う")){
 				relationName = "";
 				isDependency = true;
-			} else {
+				logger.log(Level.INFO, () -> "isDependency");
+			}
+			// それ以外は関連
+			else {
 				isAssociation = true;
+				logger.log(Level.INFO, () -> "isAssociation");
 			}
 		}
 	}
@@ -199,7 +227,7 @@ class FunctionCreator {
 		// 継承を確認
 		if(isGeneralization){
 			setRelationOfGeneralization(p);
-		} 
+		}
 		// 実現を確認
 		else if(isRealization){
 			setRelationOfRealization(p);
@@ -230,7 +258,7 @@ class FunctionCreator {
 				relationA = a;
 				relationP = (ILinkPresentation)p;
 			}
-		}		
+		}
 	}
 
 	private void setRelationOfGeneralization(IPresentation p) {
@@ -264,6 +292,100 @@ class FunctionCreator {
 	}
 
 
+	// クラス間関連を追加or削除
+	public void addOrDelRelation() throws InvalidEditingException {
+		if(delRelation) {
+			delRelation();
+		} else {
+			addRelation();
+		}
+	}
+
+
+	// クラス間関連を削除
+	public void delRelation() throws InvalidEditingException {
+		// 継承削除
+		if(isGeneralization){
+			logger.log(Level.INFO, () -> "isGeneralization");
+			delRelationOfGeneralization();
+		}
+		// 実現削除
+		else if(isRealization){
+			logger.log(Level.INFO, () -> "isRealization");
+			delRelationOfRealization();
+		}
+		// 依存削除
+		else if(isDependency){
+			logger.log(Level.INFO, () -> "isDependency");
+			delRelationOfDependency();
+		}
+		// 関連削除
+		else {
+			logger.log(Level.INFO, () -> "isAssociation");
+			delRelationOfAssociation();
+		}
+	}
+
+	private void delRelationOfAssociation() throws InvalidEditingException {
+		Optional<IAssociation> optionalA =
+				Arrays.stream(subjectC.getAttributes())
+				.map(IAttribute::getAssociation)
+				.filter(a -> a.getName().equals(relationName))
+				.filter(a ->
+				{
+					IAttribute[] attrs = a.getMemberEnds();
+					return (attrs[0].getType().equals(subjectC) && attrs[1].getType().equals(objectC))
+							||
+							(attrs[1].getType().equals(subjectC) && attrs[0].getType().equals(objectC));
+				})
+				.findFirst();
+
+		if(optionalA.isPresent()){
+			relationA = optionalA.get();
+			bme.delete(relationA);
+		}
+	}
+
+	private void delRelationOfGeneralization() throws InvalidEditingException {
+		Optional<IGeneralization> optionalG =
+				Arrays.stream(subjectC.getGeneralizations())
+				.filter(g -> g.getSuperType().equals(objectC))
+				.findFirst();
+
+		if(optionalG.isPresent()){
+			logger.log(Level.INFO, () -> "optionalG is present");
+			relationG = optionalG.get();
+			bme.delete(relationG);
+		} else {
+			logger.log(Level.INFO, () -> "optionalG is NOT presenta");
+		}
+	}
+
+	private void delRelationOfRealization() throws InvalidEditingException {
+		Optional<IRealization> optionalR =
+				Arrays.stream(subjectC.getClientRealizations())
+				.filter(r -> r.getSupplier().equals(objectC))
+				.findFirst();
+
+		if(optionalR.isPresent()){
+			relationR = optionalR.get();
+			bme.delete(relationR);
+		}
+	}
+
+	private void delRelationOfDependency() throws InvalidEditingException {
+		Optional<IDependency> optionalD =
+				Arrays.stream(subjectC.getClientDependencies())
+				.filter(d -> d.getSupplier().equals(objectC))
+				.findFirst();
+
+		if(optionalD.isPresent()){
+			relationD = optionalD.get();
+			bme.delete(relationD);
+		}
+	}
+
+
 	// クラス間関連を追加
 	public void addRelation() throws InvalidEditingException {
 		// 関連がなければ追加
@@ -271,15 +393,15 @@ class FunctionCreator {
 			// 継承追加
 			if(isGeneralization){
 				addRelationOfGeneralization();
-			} 
+			}
 			// 実現追加
 			else if(isRealization){
 				addRelationOfRealization();
-			} 
+			}
 			// 依存追加
 			else if(isDependency){
 				addRelationOfDependency();
-			} 
+			}
 			// 関連追加
 			else {
 				addRelationOfAssociation();
@@ -288,18 +410,18 @@ class FunctionCreator {
 
 		// 関連に集約を設定
 		setAggregation();
-		
+
 		// 関連に属性と操作を追加
 		addAttribute();
 		addOperation();
 	}
 
 	private void addRelationOfAssociation() throws InvalidEditingException {
-		Optional<IAssociation> optionalA = 
+		Optional<IAssociation> optionalA =
 				Arrays.stream(subjectC.getAttributes())
 				.map(IAttribute::getAssociation)
 				.filter(a -> a.getName().equals(relationName))
-				.filter(a -> 
+				.filter(a ->
 				{
 					IAttribute[] attrs = a.getMemberEnds();
 					return (attrs[0].getType().equals(subjectC) && attrs[1].getType().equals(objectC))
@@ -314,23 +436,23 @@ class FunctionCreator {
 		} else {
 			relationA = bme.createAssociation(
 					(IClass)subjectP.getModel(),
-					(IClass)objectP.getModel(), 
-					relationName, 
+					(IClass)objectP.getModel(),
+					relationName,
 					"",
 					"");
 		}
 		relationP = cde.createLinkPresentation(relationA, subjectP, objectP);
 	}
-	
+
 	private void setAggregation() throws InvalidEditingException {
 		// 集約を追加
 		if(isAggregation){
-			List<IAttribute> attrs = 
+			List<IAttribute> attrs =
 					Arrays.stream(relationA.getMemberEnds())
 					.filter(a -> a.getType().equals(objectC))
 					.filter(a -> ! a.isAggregate())
 					.collect(Collectors.toList());
-			
+
 			for(IAttribute a : attrs){
 				a.setAggregation();
 			}
@@ -339,16 +461,16 @@ class FunctionCreator {
 
 	private void addOperation() throws InvalidEditingException {
 		if(!addOperation) return;
-		
+
 		// 操作名
 		operationName = relationName.startsWith("を") || relationName.startsWith("の") ? relationName.substring(1) : null;
 		if(operationName == null){
-			logger.log(Level.INFO, () -> "operation:" + operationName + " is invalid method.");			
+			logger.log(Level.INFO, () -> "operation:" + operationName + " is invalid method.");
 			return;
 		}
-		
+
 		// 操作を追加
-		Optional<IOperation> optionalOpe = 
+		Optional<IOperation> optionalOpe =
 				Arrays.stream(objectC.getOperations())
 				.filter(ope -> ope.getName().equals(operationName))
 				.findFirst();
@@ -364,7 +486,7 @@ class FunctionCreator {
 		if(!(addAttribute && isAttributeAssociation)) return;
 
 		// objectクラスに属性がなければ追加
-		Optional<IAttribute> optionalAttr = 
+		Optional<IAttribute> optionalAttr =
 				Arrays.stream(objectC.getAttributes())
 				.filter(attr -> attr.getName().equals(attributeName))
 				.findFirst();
@@ -377,7 +499,7 @@ class FunctionCreator {
 	}
 
 	private void addRelationOfGeneralization() throws InvalidEditingException {
-		Optional<IGeneralization> optionalG = 
+		Optional<IGeneralization> optionalG =
 				Arrays.stream(subjectC.getGeneralizations())
 				.filter(g -> g.getSuperType().equals(objectC))
 				.findFirst();
@@ -391,7 +513,7 @@ class FunctionCreator {
 	}
 
 	private void addRelationOfRealization() throws InvalidEditingException {
-		Optional<IRealization> optionalR = 
+		Optional<IRealization> optionalR =
 				Arrays.stream(subjectC.getClientRealizations())
 				.filter(r -> r.getSupplier().equals(objectC))
 				.findFirst();
@@ -408,7 +530,7 @@ class FunctionCreator {
 	}
 
 	private void addRelationOfDependency() throws InvalidEditingException {
-		Optional<IDependency> optionalD = 
+		Optional<IDependency> optionalD =
 				Arrays.stream(subjectC.getClientDependencies())
 				.filter(d -> d.getSupplier().equals(objectC))
 				.findFirst();
@@ -452,13 +574,13 @@ class FunctionCreator {
 
 	IClass getIClassFromModel(String subjectName)
 			throws ProjectNotFoundException, InvalidEditingException {
-		Optional<IClass> optionalC = 
+		Optional<IClass> optionalC =
 				Arrays.stream(projectAccessor.findElements(IClass.class, subjectName))
 				.map(IClass.class::cast)
 				// クラス図と同じレイヤにクラスがあるかどうか確認する
 				.filter(cl -> diagram.getContainer() == cl.getContainer())
 				.findFirst();
-		
+
 		// 既存クラスがなければ作る
 		if(optionalC.isPresent()){
 			return optionalC.get();

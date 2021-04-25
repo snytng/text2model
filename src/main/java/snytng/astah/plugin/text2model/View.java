@@ -15,7 +15,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
-import java.util.StringJoiner;
 import java.util.Vector;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -23,6 +22,7 @@ import java.util.function.Supplier;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.swing.JButton;
@@ -302,27 +302,30 @@ IDiagramEditorSelectionListener
 		DiagramWriter dw = getDiagramWriter(diagram);
 		dw.setNounMode(checkBoxNoun.isSelected());
 		Function<String, String[][]> textAnalizer = dw.getTextAanalyzer();
-		// TODO 未対応の図のときのsovs動作確認
 		String[][] sovs = textAnalizer.apply(str);
+		String[][] texts = Stream.of(sovs)
+				.map(sov -> {
+					String sov0  = sov[0] != null ? sov[0] : "";
+					String sov0a = sov[0] != null ? "は、" : "";
+					String sov1  = sov[1] != null ? sov[1] : "";
+					String sov1a = sov[2] != null ? "の"   : "";
+					String sov2  = sov[2] != null ? sov[2] : "";
+					String sov3  = sov[3] != null ? sov[3] : "";
+					return new String[]{sov0, sov0a, sov1, sov1a, sov2, sov3};
+				})
+				.toArray(String[][]::new);
 
 		// メッセージの表示
 		reqTableModel.setRowCount(0); // 表示内容を消去
 
 		// 図にあるエントリを追加
 		for(String[] words : ms){
-			String sentence = String.join("", words);
+			String sentence = String.join("", words[1], words[2], words[3], ""     , ""     , words[4]);
 
-			if(Stream.of(sovs).noneMatch(sov -> {
-				String sov0  = sov[0] != null ? sov[0] : "";
-				String sov0a = sov[0] != null ? "は、" : "";
-				String sov1  = sov[1] != null ? sov[1] : "";
-				String sov1a = sov[2] != null ? "の"   : "";
-				String sov2  = sov[2] != null ? sov[2] : "";
-				String sov3  = sov[3] != null ? sov[3] : "";
-
-				String wSentens = String.format("%s%s%s%s%s%s", words[1], words[2], words[3], ""   , ""  , words[4]);
-				String sSentens = String.format("%s%s%s%s%s%s", sov0,     sov0a,    sov1,     sov1a, sov2, sov3);
-				return wSentens.equals(sSentens);
+			if(Stream.of(texts).noneMatch(text -> {
+				String ws = String.join("", words[1], words[2], words[3], ""     , ""     , words[4]);
+				String ts = String.join("", text[0],  text[1],  text[2],  text[3], text[4], text[5]);
+				return ws.equals(ts);
 
 			})) {
 				reqTableModel.addRow(new String[]{MINUS_MARK, words[1], words[2], words[3], "", "", words[4], sentence});
@@ -332,20 +335,15 @@ IDiagramEditorSelectionListener
 		}
 
 		// 新しいエントリをreqTableModelへ追加
-		for(String[] sov : sovs){
-			String sov0  = sov[0] != null ? sov[0] : "";
-			String sov0a = sov[0] != null ? "は、" : "";
-			String sov1  = sov[1] != null ? sov[1] : "";
-			String sov1a = sov[2] != null ? "の"   : "";
-			String sov2  = sov[2] != null ? sov[2] : "";
-			String sov3  = sov[3] != null ? sov[3] : "";
+		for(String[] text : texts){
 
 			if(Stream.of(ms).noneMatch(words -> {
-				String wSentens = String.format("%s%s%s%s%s%s", words[1], words[2], words[3], ""   , ""  , words[4]);
-				String sSentens = String.format("%s%s%s%s%s%s", sov0,     sov0a,    sov1,     sov1a, sov2, sov3);
-				return wSentens.equals(sSentens);
-				})) {
-				reqTableModel.addRow(new String[]{PLUS_MARK, sov0, sov0a, sov1, sov1a, sov2, sov3});
+				String ws = String.join("", words[1], words[2], words[3], ""     , ""     , words[4]);
+				String ts = String.join("", text[0],  text[1],  text[2],  text[3], text[4], text[5]);
+				return ws.equals(ts);
+			})) {
+				String sentence = String.join("", text[0],  text[1],  text[2],  text[3], text[4], text[5]);
+				reqTableModel.addRow(new String[]{PLUS_MARK, text[0], text[1],  text[2],  text[3],  text[4], text[5], sentence});
 			}
 		}
 	}
@@ -394,6 +392,30 @@ IDiagramEditorSelectionListener
 		}).start();
 	}
 
+	private void delAllFunctionsFromReqTableThread(){
+		new Thread(()->{
+			@SuppressWarnings("unchecked")
+			Vector<Vector<String>> dataTable = (Vector<Vector<String>>) reqTableModel.getDataVector().clone();
+			int rowCount = dataTable.size();
+
+			progressBar.setMaximum(rowCount);
+			progressBar.setStringPainted(true);
+			progressBar.setVisible(true);
+
+			logger.log(Level.INFO,"delAllFunctionsFromReqTableThread thread");
+
+			int col = 0;
+			for(int row = 0; row < rowCount; row++){
+				delFunctionFromDataTable(dataTable, row, col);
+				progressBar.setValue(row+1);
+			}
+
+			progressBar.setVisible(false);
+
+			updateDiagramView();
+		}).start();
+	}
+
 	private Container createTablePane() {
 		reqTable = new JTable(reqTableModel);
 		reqTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
@@ -410,6 +432,7 @@ IDiagramEditorSelectionListener
 				Vector<Vector<String>> dataTable = (Vector<Vector<String>>) reqTableModel.getDataVector().clone();
 
 				addFunctionFromDataTable(dataTable, row, col);
+				delFunctionFromDataTable(dataTable, row, col);
 				updateDiagramView();
 			}
 		});
@@ -417,6 +440,7 @@ IDiagramEditorSelectionListener
 		progressBar.setVisible(false);
 
 		addAllPlusButton.addActionListener(e -> addAllFunctionsFromReqTableThread());
+		delAllMinusButton.addActionListener(e -> delAllFunctionsFromReqTableThread());
 		replaceReadTextButton.addActionListener(e -> replaceReadText());
 
 		JPanel panel = new JPanel();
@@ -440,22 +464,50 @@ IDiagramEditorSelectionListener
 	}
 
 	private void addFunctionFromDataTable(Vector<Vector<String>> dataTable, int row, int col) {
-		// 選択セルの値が追加記号だったらモデルに追加
+		// 選択セルの値が追加記号だったらモデルへ追加
 		String cellstr = dataTable.elementAt(row).elementAt(col);
+
+		String subjectName   = dataTable.elementAt(row).elementAt(1);
+		String objectName    = dataTable.elementAt(row).elementAt(3);
+		String attributeName = dataTable.elementAt(row).elementAt(5);
+		String relationName  = dataTable.elementAt(row).elementAt(6);
 
 		if(cellstr.equals(PLUS_MARK)){
 			logger.log(Level.INFO, "Add this row data to diagram");
-
-			String subjectName   = dataTable.elementAt(row).elementAt(1);
-			String objectName    = dataTable.elementAt(row).elementAt(3);
-			String attributeName = dataTable.elementAt(row).elementAt(5);
-			String relationName  = dataTable.elementAt(row).elementAt(6);
-
 			addFunction(subjectName, objectName, attributeName, relationName);
+
+		}
+	}
+
+	private void delFunctionFromDataTable(Vector<Vector<String>> dataTable, int row, int col) {
+		// 選択セルの値が削除記号だったらモデルから削除
+		String cellstr = dataTable.elementAt(row).elementAt(col);
+
+		String subjectName   = dataTable.elementAt(row).elementAt(1);
+		String objectName    = dataTable.elementAt(row).elementAt(3);
+		String attributeName = dataTable.elementAt(row).elementAt(5);
+		String relationName  = dataTable.elementAt(row).elementAt(6);
+
+		if(cellstr.equals(MINUS_MARK)){
+			logger.log(Level.INFO, "Delete this row data to diagram");
+			delFunction(subjectName, objectName, attributeName, relationName);
 		}
 	}
 
 	private void addFunction(String subjectName, String objectName, String attributeName, String relationName) {
+		addFunction(subjectName, objectName, attributeName, relationName, false);
+	}
+
+	private void delFunction(String subjectName, String objectName, String attributeName, String relationName) {
+		addFunction(subjectName, objectName, attributeName, relationName, true);
+	}
+
+	private void addFunction(
+			String subjectName,
+			String objectName,
+			String attributeName,
+			String relationName,
+			boolean delRelation) {
 		IDiagram diagram = diagramViewManager.getCurrentDiagram();
 		if(diagram == null){
 			return;
@@ -468,6 +520,7 @@ IDiagramEditorSelectionListener
 			f.objectName    = objectName;
 			f.attributeName = attributeName;
 			f.relationName  = relationName;
+			f.delRelation   = delRelation;
 
 			DiagramWriter dw = getDiagramWriter(diagram);
 
@@ -545,7 +598,7 @@ IDiagramEditorSelectionListener
 
 			for(String message : messages){
 				String[] words = message.split(",");
-				String sentence = String.join("", words);
+				String sentence = String.join("", words[1], words[2], words[3], "", "", words[4]);
 				if(words.length == 5){
 					reqTableModel.addRow(new String[]{words[0], words[1], words[2], words[3], "", "", words[4], sentence});
 				} else {
@@ -567,13 +620,12 @@ IDiagramEditorSelectionListener
 	}
 
 	private void replaceReadText(){
-		StringJoiner sj = new StringJoiner(System.lineSeparator());
 		@SuppressWarnings("unchecked")
 		Vector<Vector<String>> dataVector = reqTableModel.getDataVector();
-		for(Vector<String> vs : dataVector){
-			sj.add(vs.elementAt(7).substring(1)); // 先頭の○×を取り除く
-		}
-		textArea.setText(sj.toString());
+		textArea.setText(
+				dataVector.stream()
+				.map(v -> v.elementAt(7)) // 文章を抽出
+				.collect(Collectors.joining(System.lineSeparator()))); // 改行で連結
 	}
 
 	// IPluginExtraTabView
