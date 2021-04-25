@@ -115,7 +115,9 @@ public class ClassDiagramWriter implements DiagramWriter {
 
 				// シーケンス図を作成
 				if(sequenceDiagramMode){
-					SequenceDiagramWriter.getInstance().createSequenceDiagram(classDiagram, f);
+					if(! f.delRelation) {
+						SequenceDiagramWriter.getInstance().createSequenceDiagram(classDiagram, f);
+					}
 				}
 
 			} catch (Exception e) {

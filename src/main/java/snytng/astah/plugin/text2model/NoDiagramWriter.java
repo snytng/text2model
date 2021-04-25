@@ -37,6 +37,7 @@ public class NoDiagramWriter implements DiagramWriter {
 	}
 
 	public void setNounMode(boolean b){
+		// no action
 	}
 
 	public Function<String, String[][]> getTextAanalyzer(){
@@ -44,10 +45,13 @@ public class NoDiagramWriter implements DiagramWriter {
 	}
 
 	public void setSequenceDiagramMode(boolean b){
+		// no action
 	}
 
 	public Consumer<FunctionCreator> getFunctionVisualizer(){
-		return f -> {};
+		return f -> {
+			logger.log(Level.WARNING, () -> "The current diagram type is NOT supported.");
+		};
 	}
 
 }

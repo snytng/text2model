@@ -208,6 +208,12 @@ IDiagramEditorSelectionListener
 					addAllFunctionsFromReqTableThread();
 				}
 
+				// Ctrl-Shift-Enterの場合には全部削除&全部追加
+				if((mod & InputEvent.CTRL_DOWN_MASK & InputEvent.SHIFT_MASK) != 0){
+					syncAllFunctionsFromReqTableThread();
+				}
+
+
 			}
 		});
 		textArea.addMouseListener(new MouseAdapter() {
@@ -329,22 +335,23 @@ IDiagramEditorSelectionListener
 
 			})) {
 				reqTableModel.addRow(new String[]{MINUS_MARK, words[1], words[2], words[3], "", "", words[4], sentence});
+
+			} else if(Stream.of(texts).anyMatch(text -> {
+				String ws = String.join("", words[1], words[2], words[3], ""     , ""     , words[4]);
+				String ts = String.join("", text[0],  text[1],  text[2],  text[3], text[4], text[5]);
+				return ws.equals(ts);
+
+			})) {
+				// 文章からのエントリは最後に追加するので除外しておく
 			} else {
 				reqTableModel.addRow(new String[]{words[0], words[1], words[2], words[3], "", "", words[4], sentence});
 			}
 		}
 
-		// 新しいエントリをreqTableModelへ追加
+		// 文章からエントリをreqTableModelへ追加
 		for(String[] text : texts){
-
-			if(Stream.of(ms).noneMatch(words -> {
-				String ws = String.join("", words[1], words[2], words[3], ""     , ""     , words[4]);
-				String ts = String.join("", text[0],  text[1],  text[2],  text[3], text[4], text[5]);
-				return ws.equals(ts);
-			})) {
-				String sentence = String.join("", text[0],  text[1],  text[2],  text[3], text[4], text[5]);
-				reqTableModel.addRow(new String[]{PLUS_MARK, text[0], text[1],  text[2],  text[3],  text[4], text[5], sentence});
-			}
+			String sentence = String.join("", text[0],  text[1],  text[2],  text[3], text[4], text[5]);
+			reqTableModel.addRow(new String[]{PLUS_MARK, text[0], text[1],  text[2],  text[3],  text[4], text[5], sentence});
 		}
 	}
 
@@ -362,6 +369,36 @@ IDiagramEditorSelectionListener
 	JProgressBar progressBar = new JProgressBar();
 	int progressBarMaxCount = 0;
 	int progressBarCount = 0;
+
+	private void syncAllFunctionsFromReqTableThread(){
+		// 全関数を追加するときには、シーケンス図を新規に作成する
+		SequenceDiagramWriter.getInstance().setCreateNewSequenceDiagram(true);
+		// 全機能を追加するときには、アクティビティ図は新規に作成する
+		ActivityDiagramWriter.getInstance().setCreateNewActivityDiagram(true);
+
+		new Thread(()->{
+			@SuppressWarnings("unchecked")
+			Vector<Vector<String>> dataTable = (Vector<Vector<String>>) reqTableModel.getDataVector().clone();
+			int rowCount = dataTable.size();
+
+			progressBar.setMaximum(rowCount);
+			progressBar.setStringPainted(true);
+			progressBar.setVisible(true);
+
+			logger.log(Level.INFO,"addAllFunctionsFromReqTableThread thread");
+
+			int col = 0;
+			for(int row = 0; row < rowCount; row++){
+				delFunctionFromDataTable(dataTable, row, col);
+				addFunctionFromDataTable(dataTable, row, col);
+				progressBar.setValue(row+1);
+			}
+
+			progressBar.setVisible(false);
+
+			updateDiagramView();
+		}).start();
+	}
 
 	private void addAllFunctionsFromReqTableThread(){
 		// 全関数を追加するときには、シーケンス図を新規に作成する
@@ -475,7 +512,6 @@ IDiagramEditorSelectionListener
 		if(cellstr.equals(PLUS_MARK)){
 			logger.log(Level.INFO, "Add this row data to diagram");
 			addFunction(subjectName, objectName, attributeName, relationName);
-
 		}
 	}
 
@@ -524,14 +560,12 @@ IDiagramEditorSelectionListener
 
 			DiagramWriter dw = getDiagramWriter(diagram);
 
-			if(dw != null){
-				dw.setSequenceDiagramMode(checkBoxCreateNewSequenceDiagram.isEnabled() && checkBoxCreateNewSequenceDiagram.isSelected());
-				Consumer<FunctionCreator> functionConsumer = dw.getFunctionVisualizer();
-				functionConsumer.accept(f);
-			}
-			else {
-				logger.log(Level.WARNING, () -> "The current diagram type is NOT supported.");
-			}
+			dw.setSequenceDiagramMode(
+					checkBoxCreateNewSequenceDiagram.isEnabled() &&
+					checkBoxCreateNewSequenceDiagram.isSelected());
+			Consumer<FunctionCreator> functionConsumer = dw.getFunctionVisualizer();
+			functionConsumer.accept(f);
+
 		}catch(Exception e){
 			logger.log(Level.WARNING, e.getMessage(), e);
 		}
