@@ -655,10 +655,10 @@ IDiagramEditorSelectionListener
 
 	private void replaceReadText(){
 		@SuppressWarnings("unchecked")
-		Vector<Vector<String>> dataVector = reqTableModel.getDataVector();
+		Vector<Vector> dataVector = reqTableModel.getDataVector();
 		textArea.setText(
 				dataVector.stream()
-				.map(v -> v.elementAt(7)) // 文章を抽出
+				.map(v -> (String)v.elementAt(7)) // 文章を抽出
 				.collect(Collectors.joining(System.lineSeparator()))); // 改行で連結
 	}
 
